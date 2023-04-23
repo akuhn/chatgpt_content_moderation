@@ -1,43 +1,39 @@
 (function() {
+  console.log("ChatGPT moderation: blocking disabled");
 
-    console.log("Em was here");
+  window.chatgpt_moderation_blocking_disabled = true;
 
-    var __fetch = window.fetch;
-    window.fetch = async function(url) {
-        if (url.includes("/backend-api/conversation/")) {
-            return __fetch.apply(this, arguments).then(response => {
-                var __json = response.json;
-                response.json = async function() {
-                    return __json.apply(this, arguments).then(data => {
-                        // Disable moderation results...
-                        data.moderation_results = [];
-                        return data;
-                    });
-                }
-                return response;
-            });
+  let __fetch = window.fetch;
+  window.fetch = async function(url, options) {
+
+    if (url.match(/\/backend-api\/conversation\/[0-9a-f]+/)) {
+      let response = await __fetch(url, options);
+      let data = await response.json();
+      // console.log(url, data);
+      for (let each of data.moderation_results) {
+        if (each.blocked) {
+          each.blocked = false;
+          each.flagged = true;
         }
-        if (url.includes("/backend-api/moderations")) {
-            // console.log("/backend-api/moderations", arguments);
-            return __fetch.apply(this, arguments).then(response => {
-                var __json = response.json;
-                response.json = async function() {
-                    return __json.apply(this, arguments).then(data => {
-                        // console.log("/backend-api/moderations => data", data);
-                        if (data.blocked) {
-                            console.log("Downgrading moderation from blocked to flagged.");
-                            data.blocked = false;
-                            data.flagged = true;
-                        }
-                        return data;
-                    });
-                }
-                return response;
-            });
-        }
-        else {
-            return __fetch.apply(this, arguments);
-        }
+      }
+      response.json = async () => data;
+      return response;
     }
 
+    if (url.includes("/backend-api/moderations")) {
+      let response = await __fetch(url, options);
+      let data = await response.json();
+      // console.log(url, data);
+      if (data.blocked) {
+        console.log("Downgraded moderation from blocked to flagged message.", moderation_id);
+        data.blocked = false;
+        data.flagged = true;
+      }
+      console.log(url, data);
+      response.json = async () => data;
+      return response;
+    }
+
+    return __fetch(url, options);
+  };
 })();
